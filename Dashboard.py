@@ -87,6 +87,36 @@ except:
     st.sidebar.write("レポートは準備中だよ")
 
 # -----------------------------
+# Sidebar: Bot Inquiries (DMs and mentions to the bot, pending review)
+# -----------------------------
+st.sidebar.markdown("---")
+st.sidebar.header("管理者への声")
+
+try:
+    inq_df = pd.read_sql(
+        "SELECT * FROM bot_inquiries WHERE status = 'pending' ORDER BY created_at DESC", 
+        conn
+    )
+
+    if not inq_df.empty:
+        for i, row in inq_df.iterrows():
+            with st.sidebar.expander(f"{row['user_name']} ({row['created_at'][:16]})"):
+                msg_type = "DM" if row['is_dm'] else "メンション/返信"
+                st.caption(f"経由: {msg_type}")
+                st.write(row['content'])
+                st.markdown(f"[Discordでメッセージを確認]({row['jump_url']})")
+                if st.button("確認済みにする", key=f"inq_{row['id']}"):
+                    conn.execute("UPDATE bot_inquiries SET status = 'reviewed' WHERE id = ?", (row['id'],))
+                    conn.commit()
+                    st.rerun()
+    else:
+        st.sidebar.write("現在、未確認のメッセージはないよ。")
+
+except Exception as e:
+    st.sidebar.write("準備中だよ。")
+
+
+# -----------------------------
 # Main Section: Log Filtering UI
 # -----------------------------
 st.header("記録")

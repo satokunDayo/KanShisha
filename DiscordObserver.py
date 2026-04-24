@@ -45,6 +45,16 @@ def init_db():
                  (id INTEGER PRIMARY KEY, 
                   report_text TEXT, 
                   created_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    
+    # Table for storing user inquiries to the bot (DMs or mentions)
+    c.execute('''CREATE TABLE IF NOT EXISTS bot_inquiries 
+                 (id INTEGER PRIMARY KEY, 
+                  user_id TEXT, user_name TEXT, 
+                  content TEXT, 
+                  jump_url TEXT, 
+                  is_dm INTEGER, 
+                  status TEXT DEFAULT 'pending',
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
 
     conn.commit()
     conn.close()
@@ -75,11 +85,48 @@ class GuardianBot(discord.Client):
         print(f"[{self.user}] としてログイン成功したよ。これからよろしくね。")
 
     async def on_message(self, message):
-        """
-        Triggered whenever a message is sent in a channel the bot can see.
-        This bot only records messages that are replies (message.reference exists).
-        """
-        # Ignore bot's own messages and non-replies
+        # ignore messages sent by the bot itself to prevent loops
+        if message.author == self.user:
+            return
+
+        # Determine if the message is a DM, a mention, or a reply to the bot
+        is_dm = isinstance(message.channel, discord.DMChannel)
+        is_mention = self.user in message.mentions
+        is_reply_to_bot = False
+
+        #if the message is a reply, check if it's replying to the bot
+        if message.reference:
+            try:
+                ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                if ref_msg.author == self.user:
+                    is_reply_to_bot = True
+            except:
+                pass
+
+       # if the message is a DM, a mention, or a reply to the bot
+        if is_dm or is_mention or is_reply_to_bot:
+            await message.reply("……その言葉、確かに受け取ったよ。管理者に伝えておくね。")
+            
+            conn = sqlite3.connect('monitor.db')
+            c = conn.cursor()
+            c.execute("""
+                INSERT INTO bot_inquiries (user_id, user_name, content, jump_url, is_dm)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                str(message.author.id), 
+                str(message.author.name), 
+                message.content, 
+                message.jump_url, 
+                1 if is_dm else 0
+            ))
+            conn.commit()
+            conn.close()
+            print(f"Bot宛メッセージを受信: {message.author.name} - {message.content}")
+            return 
+
+        if not message.reference:
+            return
+        
         if message.author == self.user or not message.reference:
             return
 
