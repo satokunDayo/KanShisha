@@ -190,7 +190,20 @@ def cleanup_db():
     
     if c.rowcount > 0:
         print(f" {c.rowcount}件の古い記録を消去したよ。ストレージがすっきりしたね。")
-        
+
+
+    c.execute("""
+        DELETE FROM bot_inquiries 
+        WHERE created_at < DATETIME('now', '-7 days')
+    """)
+    if c.rowcount > 0:
+        print(f" {c.rowcount}件の古い目安箱メッセージを消去したよ。")
+
+    c.execute("""
+        DELETE FROM reports 
+        WHERE created_at < DATETIME('now', '-7 days')
+    """)
+
     conn.commit()
     conn.close()
 
